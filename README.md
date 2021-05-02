@@ -1,5 +1,5 @@
 # NetworkBoundResource-Based-in-RxJava
-NetworkBoundResource.java Based in RxJava for Local Db Caching
+NetworkBoundResource.java Based in RxJava for Local Db Caching for whos dont want to make Api and Database call as LiveData
 
 ## Easy To Use
 
