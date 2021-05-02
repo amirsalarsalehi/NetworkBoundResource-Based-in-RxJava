@@ -8,7 +8,7 @@ NetworkBoundResource.java Based in RxJava for Local Db Caching for whos dont wan
 - Create method in your repository that return LiveData and use asLiveData to get result as LiveData
 - Enjoy Local Database Cache !
  
-## Example
+## Repository Code
 
 ``` Java
 public LiveData<Resource<List<Recipe>>> getRecipes(String q, int num) {
