@@ -1,5 +1,10 @@
 # NetworkBoundResource-Based-in-RxJava
-NetworkBoundResource.java Based in RxJava for Local Db Caching for whos dont want to make Api and Database call as LiveData
+NetworkBoundResource.java (Google Best Practices) Based in RxJava for Local Db Caching for whos dont want to make Api and Database call as LiveData
+
+## Detail
+- NetworkBoundResource -> Caching Process
+- ApiResponse -> Handling Network Responses
+- Resource -> Handling what happening now (onLoading, onError, onSuccess)
 
 ## Easy To Use
 
