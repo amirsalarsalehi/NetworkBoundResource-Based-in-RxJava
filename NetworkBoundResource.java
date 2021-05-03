@@ -1,5 +1,3 @@
-package com.lorevantonio.recipetamrin.request.response;
-
 import androidx.lifecycle.LiveData;
 import androidx.lifecycle.LiveDataReactiveStreams;
 import androidx.lifecycle.MediatorLiveData;
@@ -19,7 +17,7 @@ public abstract class NetworkBoundResource<Result, Request> {
     private void init() {
         results.setValue(Resource.loading(null));
 
-        LiveData<Result> dbSource = LiveDataReactiveStreams.fromPublisher(loadFromDb());
+        final LiveData<Result> dbSource = LiveDataReactiveStreams.fromPublisher(loadFromDb());
 
         results.addSource(dbSource, result -> {
             results.removeSource(dbSource);
@@ -37,7 +35,7 @@ public abstract class NetworkBoundResource<Result, Request> {
             setValue(Resource.loading(result));
         });
 
-        LiveData<ApiResponse<Request>> apiResponse = LiveDataReactiveStreams.fromPublisher(
+        final LiveData<ApiResponse<Request>> apiResponse = LiveDataReactiveStreams.fromPublisher(
                 createCall()
                         .subscribeOn(Schedulers.io())
                         .observeOn(Schedulers.io())
