@@ -1,97 +1,110 @@
-import androidx.lifecycle.LiveData;
-import androidx.lifecycle.LiveDataReactiveStreams;
-import androidx.lifecycle.MediatorLiveData;
-
-import io.reactivex.rxjava3.core.Flowable;
-import io.reactivex.rxjava3.schedulers.Schedulers;
-import retrofit2.Response;
-
 public abstract class NetworkBoundResource<Result, Request> {
 
+    private static final String TAG = "NetworkBoundResource";
+
+    private AppExecutors appExecutors;
     private MediatorLiveData<Resource<Result>> results = new MediatorLiveData<>();
 
-    public NetworkBoundResource() {
+    public NetworkBoundResourceSimple(AppExecutors appExecutors) {
+        this.appExecutors = appExecutors;
         init();
     }
 
     private void init() {
+
         results.setValue(Resource.loading(null));
 
         final LiveData<Result> dbSource = LiveDataReactiveStreams.fromPublisher(loadFromDb());
 
         results.addSource(dbSource, result -> {
+
             results.removeSource(dbSource);
-            if (shouldFetch(result)) fetchFromNetwork(dbSource);
-            else results.addSource(dbSource, res -> {
-                results.removeSource(dbSource);
-                setValue(Resource.success(res));
-            });
+
+            if (shouldFetch(result)) {
+                fetchFromNetwork(dbSource);
+            } else {
+                results.addSource(dbSource, result1 -> setValue(Resource.success(result1)));
+            }
+
         });
     }
 
-    private void fetchFromNetwork(LiveData<Result> dbSource) {
-        results.addSource(dbSource, result -> {
-            results.removeSource(dbSource);
-            setValue(Resource.loading(result));
-        });
+    private void fetchFromNetwork(final LiveData<Result> dbSource) {
+
+        Log.d(TAG, "fetchFromNetwork: called.");
+
+        results.addSource(dbSource, result -> setValue(Resource.loading(result)));
 
         final LiveData<ApiResponse<Request>> apiResponse = LiveDataReactiveStreams.fromPublisher(
                 createCall()
                         .subscribeOn(Schedulers.io())
                         .observeOn(Schedulers.io())
-                        .map(request -> new ApiResponse<Request>().create(request))
+                        .map(response -> new ApiResponse<Request>().create(response))
                         .onErrorReturn(throwable -> new ApiResponse<Request>().create(throwable))
         );
 
-
-        results.addSource(apiResponse, requestApiResponse -> {
-
-            results.removeSource(apiResponse);
+        results.addSource(apiResponse, requestObjectApiResponse -> {
             results.removeSource(dbSource);
-            LiveData<Result> data;
+            results.removeSource(apiResponse);
 
-            if (requestApiResponse instanceof ApiResponse.ApiSuccessResponse) {
-                saveCallResult(((ApiResponse.ApiSuccessResponse<Request>) requestApiResponse).getBody());
-                data = LiveDataReactiveStreams.fromPublisher(loadFromDb().onErrorReturn(throwable -> null));
-                results.addSource(data, result -> {
-                            setValue(Resource.success(result));
-                            results.removeSource(data);
+            if (requestObjectApiResponse instanceof ApiResponse.ApiSuccessResponse) {
+
+                appExecutors.diskIO().execute(() -> {
+
+                    saveCallResult((((ApiResponse.ApiSuccessResponse<Request>) requestObjectApiResponse).getBody()));
+
+                    appExecutors.mainThread().execute(new Runnable() {
+                        @Override
+                        public void run() {
+                            results.addSource(LiveDataReactiveStreams.fromPublisher(loadFromDb()), new Observer<Result>() {
+                                @Override
+                                public void onChanged(@Nullable Result result) {
+                                    setValue(Resource.success(result));
+                                }
+                            });
                         }
-                );
-            } else if (requestApiResponse instanceof ApiResponse.ApiEmptyResponse) {
-                data = LiveDataReactiveStreams.fromPublisher(loadFromDb().onErrorReturn(throwable -> null));
-                results.addSource(data, result -> {
-                    setValue(Resource.success(result));
-                    results.removeSource(data);
+                    });
                 });
-            } else if (requestApiResponse instanceof ApiResponse.ApiErrorResponse) {
-                results.addSource(dbSource, result -> {
-                    setValue(
-                            Resource.error(
-                                    result,
-                                    ((ApiResponse.ApiErrorResponse<Request>) requestApiResponse).getMsg()
-                            )
-                    );
-                    results.removeSource(dbSource);
-                });
+            } else if (requestObjectApiResponse instanceof ApiResponse.ApiEmptyResponse) {
+                appExecutors.mainThread().execute(() -> results.addSource(LiveDataReactiveStreams.fromPublisher(loadFromDb()), new Observer<Result>() {
+                    @Override
+                    public void onChanged(@Nullable Result result) {
+                        setValue(Resource.success(result));
+                    }
+                }));
+            } else if (requestObjectApiResponse instanceof ApiResponse.ApiErrorResponse) {
+                results.addSource(dbSource, result -> setValue(
+                        Resource.error(
+                                result,
+                                ((ApiResponse.ApiErrorResponse<Request>) requestObjectApiResponse).getMsg()
+                        )
+                ));
             }
         });
     }
 
     private void setValue(Resource<Result> newValue) {
-        if (results.getValue() != newValue)
+        if (results.getValue() != newValue) {
             results.setValue(newValue);
+        }
     }
 
-    public abstract void saveCallResult(Request item);
+    @WorkerThread
+    protected abstract void saveCallResult(@NonNull Request item);
 
-    public abstract boolean shouldFetch(Result item);
+    @MainThread
+    protected abstract boolean shouldFetch(@Nullable Result data);
 
-    public abstract Flowable<Result> loadFromDb();
+    @NonNull
+    @MainThread
+    protected abstract Flowable<Result> loadFromDb();
 
-    public abstract Flowable<Response<Request>> createCall();
+    @NonNull
+    @MainThread
+    protected abstract Flowable<Response<Request>> createCall();
 
-    public MediatorLiveData<Resource<Result>> asLiveData() {
+    public final LiveData<Resource<Result>> getAsLiveData() {
         return results;
     }
+
 }
