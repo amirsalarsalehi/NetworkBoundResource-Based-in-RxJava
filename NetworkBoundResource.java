@@ -1,6 +1,5 @@
 public abstract class NetworkBoundResource<Result, Request> {
 
-    private static final String TAG = "NetworkBoundResource";
 
     private AppExecutors appExecutors;
     private MediatorLiveData<Resource<Result>> results = new MediatorLiveData<>();
@@ -30,8 +29,6 @@ public abstract class NetworkBoundResource<Result, Request> {
     }
 
     private void fetchFromNetwork(final LiveData<Result> dbSource) {
-
-        Log.d(TAG, "fetchFromNetwork: called.");
 
         results.addSource(dbSource, result -> setValue(Resource.loading(result)));
 
@@ -90,18 +87,18 @@ public abstract class NetworkBoundResource<Result, Request> {
     }
 
     @WorkerThread
-    protected abstract void saveCallResult(@NonNull Request item);
+    public abstract void saveCallResult(@NonNull Request item);
 
     @MainThread
-    protected abstract boolean shouldFetch(@Nullable Result data);
-
-    @NonNull
-    @MainThread
-    protected abstract Flowable<Result> loadFromDb();
+    public abstract boolean shouldFetch(@Nullable Result data);
 
     @NonNull
     @MainThread
-    protected abstract Flowable<Response<Request>> createCall();
+    public abstract Flowable<Result> loadFromDb();
+
+    @NonNull
+    @MainThread
+    public abstract Flowable<Response<Request>> createCall();
 
     public final LiveData<Resource<Result>> getAsLiveData() {
         return results;
